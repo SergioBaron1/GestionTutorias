@@ -55,51 +55,44 @@ class _LoginFormState extends State<LoginForm> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.all(20.0),
+      padding: EdgeInsets.all(20.0),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           TextField(
             controller: _usernameController,
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               labelText: 'Nombre de usuario',
             ),
           ),
-          const SizedBox(height: 20.0),
+          SizedBox(height: 20.0),
           TextField(
             controller: _passwordController,
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               labelText: 'Contraseña',
             ),
             obscureText: true,
           ),
-          const SizedBox(height: 20.0),
+          SizedBox(height: 20.0),
           ElevatedButton(
             onPressed: () {
-              // Verifica las credenciales
               if (_usernameController.text == '1234' &&
                   _passwordController.text == '1234') {
-                // Si las credenciales son correctas, navega al menú
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (context) => MenuPage()),
                 );
               } else {
-                // Muestra un mensaje de error
                 _showMessage(context, 'Nombre de usuario o contraseña incorrectos');
               }
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green, // Cambiar el color del botón a verde
+              backgroundColor: Colors.green,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(0)),
             ),
-            child: const Text('Iniciar sesión',
-                style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold
-                )
-            ),
+            child: Text('Iniciar sesión', style: TextStyle(color: Colors.white,
+                fontSize: 15,
+                fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -111,14 +104,14 @@ class _LoginFormState extends State<LoginForm> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text('Mensaje'),
+          title: Text('Mensaje'),
           content: Text(message),
           actions: [
             TextButton(
               onPressed: () {
                 Navigator.of(context).pop();
               },
-              child: const Text('Aceptar'),
+              child: Text('Aceptar'),
             ),
           ],
         );
@@ -127,12 +120,32 @@ class _LoginFormState extends State<LoginForm> {
   }
 }
 
-class MenuPage extends StatelessWidget {
+class MenuPage extends StatefulWidget {
   @override
-   Widget build(BuildContext context) {
+  _MenuPageState createState() => _MenuPageState();
+}
+
+class _MenuPageState extends State<MenuPage> {
+  List<String> _chats = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadChats();
+  }
+
+  void _loadChats() async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _chats = prefs.getStringList('chats') ?? [];
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Menú'),
+        title: Text('Menú'),
       ),
       body: Center(
         child: Column(
@@ -141,7 +154,6 @@ class MenuPage extends StatelessWidget {
             ElevatedButton(
               onPressed: () {
                 // Llama al método estático _createChat de esta clase
-                _createChat(context);
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.green,
@@ -162,7 +174,27 @@ class MenuPage extends StatelessWidget {
             ElevatedButton(
               onPressed: () {
                 // Llama al método estático _createChat de esta clase
-                _createChat(context);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                minimumSize: const Size(double.infinity, 65),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(0)),
+
+              ),
+              child: const Text(
+                'Menú de solicitudes',
+                style:  TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () {
+                _showCreateChatDialog(context);
+                // Llama al método estático _createChat de esta clase
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.green,
@@ -179,44 +211,75 @@ class MenuPage extends StatelessWidget {
                 ),
               ),
             ),
+            SizedBox(height: 20),
+            Expanded(
+              child: ListView.builder(
+                itemCount: _chats.length,
+                itemBuilder: (context, index) {
+                  return ListTile(
+                    title: Text(_chats[index]),
+                    trailing: IconButton(
+                      icon: Icon(Icons.delete),
+                      onPressed: () {
+                        _deleteChat(_chats[index]);
+                      },
+                    ),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => ChatScreen(groupName: _chats[index])),
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  // Define el método estático _createChat que toma el contexto como argumento
-  static void _createChat(BuildContext context) async {
+  void _showCreateChatDialog(BuildContext context) {
     final TextEditingController _groupNameController = TextEditingController();
-    await showDialog(
+    final TextEditingController _participantController = TextEditingController();
+    showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text('Crear grupo'),
-          content: TextField(
-            controller: _groupNameController,
-            decoration: const InputDecoration(
-              labelText: 'Nombre del grupo',
-            ),
+          title: Text('Crear nuevo grupo'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: _groupNameController,
+                decoration: InputDecoration(
+                  labelText: 'Nombre del grupo',
+                ),
+              ),
+              SizedBox(height: 10),
+              TextField(
+                controller: _participantController,
+                decoration: InputDecoration(
+                  labelText: 'Cantidad de personas',
+                ),
+                keyboardType: TextInputType.number,
+              ),
+            ],
           ),
           actions: [
             TextButton(
-              onPressed: () async {
-                if (_groupNameController.text.isNotEmpty) {
-                  // Crear una instancia de chat con el nombre proporcionado
-                  Chat newChat = Chat(name: _groupNameController.text);
-                  // Guardar el chat en el almacenamiento
-                  await _saveChat(newChat);
-                  // Cerrar el cuadro de diálogo
-                  Navigator.of(context).pop();
-                  // Navegar a la pantalla de chat con el nuevo grupo
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => ChatScreen(groupName: newChat.name)),
-                  );
-                }
+              onPressed: () {
+                _createChat(_groupNameController.text, int.tryParse(_participantController.text) ?? 0);
+                Navigator.of(context).pop();
               },
-              child: const Text('Crear'),
+              child: Text('Crear'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: Text('Cancelar'),
             ),
           ],
         );
@@ -224,12 +287,23 @@ class MenuPage extends StatelessWidget {
     );
   }
 
-  // Define el método _saveChat para guardar el chat en el almacenamiento
-  static Future<void> _saveChat(Chat chat) async {
+  void _createChat(String groupName, int participants) async {
+    if (groupName.isNotEmpty && participants > 0) {
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      setState(() {
+        _chats.add(groupName);
+        prefs.setStringList('chats', _chats);
+      });
+    }
+  }
+
+  void _deleteChat(String groupName) async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
-    List<String> chats = prefs.getStringList('chats') ?? [];
-    chats.add(chat.name);
-    await prefs.setStringList('chats', chats);
+    setState(() {
+      _chats.remove(groupName);
+      prefs.remove(groupName);
+      prefs.setStringList('chats', _chats);
+    });
   }
 }
 
@@ -244,7 +318,20 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _messageController = TextEditingController();
-  List<String> _messages = []; // Lista de mensajes del chat
+  List<String> _messages = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMessages();
+  }
+
+  void _loadMessages() async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _messages = prefs.getStringList(widget.groupName) ?? [];
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -271,13 +358,13 @@ class _ChatScreenState extends State<ChatScreen> {
                 Expanded(
                   child: TextField(
                     controller: _messageController,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       hintText: 'Escribe un mensaje...',
                     ),
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.send),
+                  icon: Icon(Icons.send),
                   onPressed: () {
                     _sendMessage(_messageController.text);
                   },
@@ -290,17 +377,12 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  void _sendMessage(String message) {
+  void _sendMessage(String message) async {
     setState(() {
       _messages.add(message);
       _messageController.clear();
     });
-    // Aquí puedes implementar la lógica para enviar el mensaje al backend o a otros usuarios
-  }
-}
-
-class Chat {
-  final String name;
-
-  Chat({required this.name});
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(widget.groupName, _messages);
+    }
 }
