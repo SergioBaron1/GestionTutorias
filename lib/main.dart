@@ -51,6 +51,7 @@ class LoginForm extends StatefulWidget {
 class _LoginFormState extends State<LoginForm> {
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  String _selectedRole = 'Estudiante'; // Default role is Student
 
   @override
   Widget build(BuildContext context) {
@@ -74,15 +75,39 @@ class _LoginFormState extends State<LoginForm> {
             obscureText: true,
           ),
           SizedBox(height: 20.0),
+          DropdownButtonFormField<String>(
+            value: _selectedRole,
+            onChanged: (newValue) {
+              setState(() {
+                _selectedRole = newValue!;
+              });
+            },
+            items: ['Estudiante', 'Tutor'].map<DropdownMenuItem<String>>((String value) {
+              return DropdownMenuItem<String>(
+                value: value,
+                child: Text(value),
+              );
+            }).toList(),
+            decoration: InputDecoration(
+              labelText: 'Seleccione su rango',
+            ),
+          ),
+          SizedBox(height: 20.0),
           ElevatedButton(
             onPressed: () {
-              if (_usernameController.text == '1234' &&
-                  _passwordController.text == '1234') {
+              // Obtenemos el nombre de usuario y la contraseña ingresados
+              String username = _usernameController.text;
+              String password = _passwordController.text;
+
+              // Verificamos si el nombre de usuario y la contraseña son correctos
+              if (username == '1234' && password == '1234') {
+                // Si son correctos, navegamos a la página del menú
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (context) => MenuPage()),
                 );
               } else {
+                // Si son incorrectos, mostramos un mensaje de error
                 _showMessage(context, 'Nombre de usuario o contraseña incorrectos');
               }
             },
@@ -90,32 +115,17 @@ class _LoginFormState extends State<LoginForm> {
               backgroundColor: Colors.green,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(0)),
             ),
-            child: Text('Iniciar sesión', style: TextStyle(color: Colors.white,
-                fontSize: 15,
-                fontWeight: FontWeight.bold)),
+            child: Text(
+              'Iniciar sesión',
+              style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold
+              ),
+            ),
           ),
         ],
       ),
-    );
-  }
-
-  void _showMessage(BuildContext context, String message) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Text('Mensaje'),
-          content: Text(message),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: Text('Aceptar'),
-            ),
-          ],
-        );
-      },
     );
   }
 }
@@ -126,7 +136,9 @@ class MenuPage extends StatefulWidget {
 }
 
 class _MenuPageState extends State<MenuPage> {
-  List<String> _chats = [];
+  int _selectedStudentCount = 1; // Default selected count
+  String _selectedSubject = 'Calculo I'; // Default selected subject
+  List<Chat> _chats = [];
 
   @override
   void initState() {
@@ -136,9 +148,118 @@ class _MenuPageState extends State<MenuPage> {
 
   void _loadChats() async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
+    List<String>? chatNames = prefs.getStringList('chatNames');
+    if (chatNames != null) {
+      setState(() {
+        _chats = chatNames.map((chatName) {
+          List<String>? messages = prefs.getStringList(chatName);
+          return Chat(chatName, messages ?? []);
+        }).toList();
+      });
+    }
+  }
+
+  void _saveChat(Chat chat) async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    List<String> chatNames = prefs.getStringList('chatNames') ?? [];
+    if (!chatNames.contains(chat.groupName)) {
+      chatNames.add(chat.groupName);
+      await prefs.setStringList('chatNames', chatNames);
+    }
+    await prefs.setStringList(chat.groupName, chat.messages);
+  }
+
+  void _showCreateChatDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: Text('Crear nuevo grupo'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  DropdownButtonFormField<String>(
+                    value: _selectedSubject,
+                    onChanged: (newValue) {
+                      setState(() {
+                        _selectedSubject = newValue!;
+                      });
+                    },
+                    items: ['Calculo I', 'Calculo II', 'Calculo III', 'Ec. Diferenciales'].map<DropdownMenuItem<String>>((String value) {
+                      return DropdownMenuItem<String>(
+                        value: value,
+                        child: Text(value),
+                      );
+                    }).toList(),
+                    decoration: InputDecoration(
+                      labelText: 'Seleccione la materia',
+                    ),
+                  ),
+                  DropdownButtonFormField<int>(
+                    value: _selectedStudentCount,
+                    onChanged: (newValue) {
+                      setState(() {
+                        _selectedStudentCount = newValue!;
+                      });
+                    },
+                    items: List.generate(6, (index) => index + 1).map<DropdownMenuItem<int>>((int value) {
+                      return DropdownMenuItem<int>(
+                        value: value,
+                        child: Text('$value estudiantes'),
+                      );
+                    }).toList(),
+                    decoration: InputDecoration(
+                      labelText: 'Cantidad de estudiantes',
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  },
+                  child: Text('Cancelar'),
+                ),
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    _createChat(context, _selectedSubject, _selectedStudentCount);
+                  },
+                  child: Text('Crear'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _createChat(BuildContext context, String subject, int participants) {
+    List<String> messages = [];
+    Chat newChat = Chat('$subject - Grupo $participants', messages);
     setState(() {
-      _chats = prefs.getStringList('chats') ?? [];
+      _chats.add(newChat);
     });
+    _saveChat(newChat);
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => ChatScreen(chat: newChat)),
+    );
+  }
+
+  void _deleteChat(Chat chat) async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _chats.remove(chat);
+    });
+    List<String> chatNames = prefs.getStringList('chatNames') ?? [];
+    chatNames.remove(chat.groupName);
+    await prefs.setStringList('chatNames', chatNames);
+    await prefs.remove(chat.groupName);
   }
 
   @override
@@ -153,62 +274,46 @@ class _MenuPageState extends State<MenuPage> {
           children: [
             ElevatedButton(
               onPressed: () {
-                // Llama al método estático _createChat de esta clase
+                // Navigate to profile page
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.green,
                 minimumSize: const Size(double.infinity, 65),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(0)),
-
               ),
               child: const Text(
-                'Ver perfíl',
-                style:  TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold
-                ),
+                'Ver perfil',
+                style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
               ),
             ),
             const SizedBox(height: 20),
             ElevatedButton(
               onPressed: () {
-                // Llama al método estático _createChat de esta clase
+                // Navigate to request menu page
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.green,
                 minimumSize: const Size(double.infinity, 65),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(0)),
-
               ),
               child: const Text(
                 'Menú de solicitudes',
-                style:  TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold
-                ),
+                style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
               ),
             ),
             const SizedBox(height: 20),
             ElevatedButton(
               onPressed: () {
                 _showCreateChatDialog(context);
-                // Llama al método estático _createChat de esta clase
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.green,
                 minimumSize: const Size(double.infinity, 65),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(0)),
-
               ),
               child: const Text(
                 'Crear grupo',
-                style:  TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold
-                ),
+                style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
               ),
             ),
             SizedBox(height: 20),
@@ -217,19 +322,19 @@ class _MenuPageState extends State<MenuPage> {
                 itemCount: _chats.length,
                 itemBuilder: (context, index) {
                   return ListTile(
-                    title: Text(_chats[index]),
+                    title: Text(_chats[index].groupName),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => ChatScreen(chat: _chats[index])),
+                      );
+                    },
                     trailing: IconButton(
                       icon: Icon(Icons.delete),
                       onPressed: () {
                         _deleteChat(_chats[index]);
                       },
                     ),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => ChatScreen(groupName: _chats[index])),
-                      );
-                    },
                   );
                 },
               ),
@@ -239,78 +344,39 @@ class _MenuPageState extends State<MenuPage> {
       ),
     );
   }
+}
 
-  void _showCreateChatDialog(BuildContext context) {
-    final TextEditingController _groupNameController = TextEditingController();
-    final TextEditingController _participantController = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Text('Crear nuevo grupo'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: _groupNameController,
-                decoration: InputDecoration(
-                  labelText: 'Nombre del grupo',
-                ),
-              ),
-              SizedBox(height: 10),
-              TextField(
-                controller: _participantController,
-                decoration: InputDecoration(
-                  labelText: 'Cantidad de personas',
-                ),
-                keyboardType: TextInputType.number,
-              ),
-            ],
+void _showMessage(BuildContext context, String message) {
+  showDialog(
+    context: context,
+    builder: (BuildContext context) {
+      return AlertDialog(
+        title: Text('Mensaje'),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+            },
+            child: Text('Aceptar'),
           ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                _createChat(_groupNameController.text, int.tryParse(_participantController.text) ?? 0);
-                Navigator.of(context).pop();
-              },
-              child: Text('Crear'),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: Text('Cancelar'),
-            ),
-          ],
-        );
-      },
-    );
-  }
+        ],
+      );
+    },
+  );
+}
 
-  void _createChat(String groupName, int participants) async {
-    if (groupName.isNotEmpty && participants > 0) {
-      final SharedPreferences prefs = await SharedPreferences.getInstance();
-      setState(() {
-        _chats.add(groupName);
-        prefs.setStringList('chats', _chats);
-      });
-    }
-  }
+class Chat {
+  final String groupName;
+  final List<String> messages;
 
-  void _deleteChat(String groupName) async {
-    final SharedPreferences prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _chats.remove(groupName);
-      prefs.remove(groupName);
-      prefs.setStringList('chats', _chats);
-    });
-  }
+  Chat(this.groupName, this.messages);
 }
 
 class ChatScreen extends StatefulWidget {
-  final String groupName;
+  final Chat chat;
 
-  ChatScreen({required this.groupName});
+  ChatScreen({required this.chat});
 
   @override
   _ChatScreenState createState() => _ChatScreenState();
@@ -318,35 +384,21 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _messageController = TextEditingController();
-  List<String> _messages = [];
-
-  @override
-  void initState() {
-    super.initState();
-    _loadMessages();
-  }
-
-  void _loadMessages() async {
-    final SharedPreferences prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _messages = prefs.getStringList(widget.groupName) ?? [];
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.groupName),
+        title: Text(widget.chat.groupName),
       ),
       body: Column(
         children: [
           Expanded(
             child: ListView.builder(
-              itemCount: _messages.length,
+              itemCount: widget.chat.messages.length,
               itemBuilder: (context, index) {
                 return ListTile(
-                  title: Text(_messages[index]),
+                  title: Text(widget.chat.messages[index]),
                 );
               },
             ),
@@ -379,10 +431,14 @@ class _ChatScreenState extends State<ChatScreen> {
 
   void _sendMessage(String message) async {
     setState(() {
-      _messages.add(message);
+      widget.chat.messages.add(message);
       _messageController.clear();
     });
+    await _saveMessages(widget.chat);
+  }
+
+  Future<void> _saveMessages(Chat chat) async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList(widget.groupName, _messages);
+    await prefs.setStringList(chat.groupName, chat.messages);
     }
 }
